@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Word to Wave — turn letters into mathematics and sound.">
+<title>Word → Wave</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="site-shell">
+<header class="hero">
+<div class="eyebrow">MATHEMATICAL AUDIO ENCODER · V2</div>
+<h1>Word <span>→</span> Wave</h1>
+<p class="hero-copy">Turn letters into a continuous mathematical waveform, see the equation, and hear the result.</p>
+</header>
+
+<section class="input-card">
+<div class="card-label">INPUT</div>
+<h2>Give the machine something to translate.</h2>
+<form id="convertForm">
+<label for="wordInput">Word or phrase</label>
+<div class="input-row">
+<input id="wordInput" type="text" maxlength="160" placeholder="e.g. HELLO WORLD" autocomplete="off" spellcheck="false">
+<button class="primary-button" type="submit">Convert</button>
+</div>
+<div class="input-meta"><span>A–Z letters are encoded; other characters are ignored.</span><span id="status" aria-live="polite"></span></div>
+</form>
+</section>
+
+<section id="results" class="results hidden" aria-live="polite">
+<div class="result-header">
+<div><div class="card-label">RESULT</div><h2 id="resultTitle">Generated wave</h2></div>
+<div class="result-meta"><span id="duration">0.00 s</span><span id="letterCount">0 letters</span></div>
+</div>
+
+<section>
+<div class="section-heading">
+<div><div class="card-label">01 · THE MATHEMATICS</div><h3>One equation. One continuous waveform.</h3></div>
+</div>
+
+<div class="equation-card">
+<div class="formula-label">General form</div>
+<div class="general-equation">
+<span><i>f</i>(t)</span><span>=</span><span class="sum-symbol">Σ</span><span class="sum-limits"><sup>N</sup><sub>n=1</sub></span>
+<span><i>a</i><sub>n</sub>(t)</span><span>sin(2π<i>f</i><sub>n</sub>t + φ<sub>n</sub>)</span>
+</div>
+<div class="equation-divider"></div>
+<div class="formula-label">Generated for <span id="generatedWord"></span></div>
+<div id="generatedEquation" class="generated-equation"></div>
+</div>
+
+<div class="contribution-wrap">
+<div class="formula-label">Letter contributions</div>
+<div id="contributions" class="contributions"></div>
+</div>
+</section>
+
+<section>
+<div class="section-heading"><div><div class="card-label">02 · THE PARAMETERS</div><h3>How each letter enters the equation</h3></div></div>
+<div class="table-card"><div class="table-scroll">
+<table>
+<thead><tr><th>#</th><th>Letter</th><th>Value</th><th>Frequency</th><th>Phase</th><th>Envelope peak</th><th>Envelope width</th></tr></thead>
+<tbody id="termTable"></tbody>
+</table>
+</div></div>
+</section>
+
+<section>
+<div class="section-heading wave-heading">
+<div><div class="card-label">03 · THE WAVEFORM</div><h3>What the mathematics becomes</h3></div>
+<div class="wave-meta">44.1 kHz · mono · 16-bit</div>
+</div>
+<div class="wave-card"><canvas id="waveform" width="1200" height="260" aria-label="Generated waveform visualization"></canvas></div>
+<div class="audio-bar">
+<button id="playButton" class="primary-button" type="button" disabled>▶ Play</button>
+<a id="downloadButton" class="download-button disabled-link" aria-disabled="true">↓ Download WAV</a>
+<button id="copyEquationButton" class="secondary-button" type="button" disabled>Copy equation</button>
+</div>
+</section>
+</section>
+
+<footer><span>Everything is generated locally in your browser.</span><span>Word → Mathematics → Wave → Sound</span></footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
