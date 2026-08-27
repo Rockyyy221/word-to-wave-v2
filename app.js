@@ -1,96 +1,1051 @@
-import {SAMPLE_RATE,analyzeWord,renderWave,encodeWav,sanitizeFilename} from "./word-to-wave.js";
+/*
+===========================================================
+WORD → WAVE WEBSITE
+===========================================================
+*/
 
-const $=id=>document.getElementById(id);
-const form=$("convertForm"),input=$("wordInput"),status=$("status"),results=$("results");
-const resultTitle=$("resultTitle"),generatedWord=$("generatedWord"),generatedEquation=$("generatedEquation");
-const contributions=$("contributions"),termTable=$("termTable"),duration=$("duration"),letterCount=$("letterCount");
-const canvas=$("waveform"),play=$("playButton"),download=$("downloadButton"),copy=$("copyEquationButton");
 
-let analysis=null,signal=null,audio=null,url=null;
+/*
+-----------------------------------------------------------
+GET HTML ELEMENTS
+-----------------------------------------------------------
+*/
 
-function highlight(index){
-  document.querySelectorAll(".equation-term,.contribution-card,tbody tr").forEach(el=>{
-    el.classList.toggle("is-highlighted",el.dataset.index===String(index));
-  });
-}
-function clearHighlight(){document.querySelectorAll(".is-highlighted").forEach(e=>e.classList.remove("is-highlighted"));}
+const wordInput =
+    document.getElementById(
+        "wordInput"
+    );
 
-function renderEquation(a){
-  generatedEquation.innerHTML="";
-  if(!a.equationParts.length){generatedEquation.textContent="f(t) = 0";return;}
-  const prefix=document.createElement("span");prefix.className="equation-prefix";prefix.innerHTML="<i>f(t)</i> =";generatedEquation.append(prefix);
-  a.equationParts.forEach((p,i)=>{
-    const term=document.createElement("span");term.className="equation-term";term.dataset.index=p.index;term.innerHTML=p.html;term.title=`${p.letter}: ${p.frequency.toFixed(1)} Hz, phase ${p.phase.toFixed(3)}`;
-    term.onmouseenter=()=>highlight(p.index);term.onfocus=()=>highlight(p.index);generatedEquation.append(term);
-    if(i<a.equationParts.length-1){const plus=document.createElement("span");plus.className="equation-plus";plus.textContent="+";generatedEquation.append(plus);}
-  });
+
+const convertButton =
+    document.getElementById(
+        "convertButton"
+    );
+
+
+const status =
+    document.getElementById(
+        "status"
+    );
+
+
+const results =
+    document.getElementById(
+        "results"
+    );
+
+
+const resultTitle =
+    document.getElementById(
+        "resultTitle"
+    );
+
+
+const resultInfo =
+    document.getElementById(
+        "resultInfo"
+    );
+
+
+const generatedEquation =
+    document.getElementById(
+        "generatedEquation"
+    );
+
+
+const lettersContainer =
+    document.getElementById(
+        "letters"
+    );
+
+
+const parameterTable =
+    document.getElementById(
+        "parameterTable"
+    );
+
+
+const canvas =
+    document.getElementById(
+        "waveCanvas"
+    );
+
+
+const playButton =
+    document.getElementById(
+        "playButton"
+    );
+
+
+const downloadButton =
+    document.getElementById(
+        "downloadButton"
+    );
+
+
+const copyButton =
+    document.getElementById(
+        "copyButton"
+    );
+
+
+/*
+-----------------------------------------------------------
+STATE
+-----------------------------------------------------------
+*/
+
+let currentAnalysis = null;
+
+let currentSignal = null;
+
+let currentAudio = null;
+
+let currentAudioURL = null;
+
+
+/*
+-----------------------------------------------------------
+CONVERT
+-----------------------------------------------------------
+*/
+
+function convert() {
+
+    const word =
+        wordInput.value.trim();
+
+
+    if (!word) {
+
+        status.textContent =
+            "Please enter a word.";
+
+        return;
+
+    }
+
+
+    /*
+    Analyze
+    */
+
+    const analysis =
+        analyzeWord(
+            word
+        );
+
+
+    if (
+        analysis.terms.length === 0
+    ) {
+
+        status.textContent =
+            "Please enter at least one A-Z letter.";
+
+        return;
+
+    }
+
+
+    status.textContent =
+        "Generating waveform...";
+
+
+    /*
+    Stop previous audio
+    */
+
+    if (currentAudio) {
+
+        currentAudio.pause();
+
+        currentAudio = null;
+
+    }
+
+
+    if (currentAudioURL) {
+
+        URL.revokeObjectURL(
+            currentAudioURL
+        );
+
+        currentAudioURL = null;
+
+    }
+
+
+    /*
+    Save analysis
+    */
+
+    currentAnalysis =
+        analysis;
+
+
+    /*
+    Render audio
+    */
+
+    currentSignal =
+        renderWave(
+            analysis
+        );
+
+
+    /*
+    WAV
+    */
+
+    const wav =
+        encodeWav(
+            currentSignal
+        );
+
+
+    currentAudioURL =
+        URL.createObjectURL(
+            wav
+        );
+
+
+    /*
+    Create audio player
+    */
+
+    currentAudio =
+        new Audio(
+            currentAudioURL
+        );
+
+
+    /*
+    Update UI
+    */
+
+    resultTitle.textContent =
+        `"${analysis.letters.join("")}"`;
+
+
+    resultInfo.textContent =
+        `${analysis.terms.length} letters · ` +
+        `${analysis.duration.toFixed(2)} seconds`;
+
+
+    renderEquation(
+        analysis
+    );
+
+
+    renderLetters(
+        analysis
+    );
+
+
+    renderTable(
+        analysis
+    );
+
+
+    drawWaveform(
+        analysis,
+        currentSignal
+    );
+
+
+    /*
+    Download button
+    */
+
+    downloadButton.href =
+        currentAudioURL;
+
+
+    downloadButton.download =
+        makeFilename(
+            word
+        );
+
+
+    downloadButton.classList.remove(
+        "disabled"
+    );
+
+
+    /*
+    Enable buttons
+    */
+
+    playButton.disabled =
+        false;
+
+
+    copyButton.disabled =
+        false;
+
+
+    /*
+    Show results
+    */
+
+    results.classList.remove(
+        "hidden"
+    );
+
+
+    status.textContent =
+        "Done.";
+
+
+    /*
+    Scroll
+    */
+
+    results.scrollIntoView({
+        behavior: "smooth"
+    });
+
 }
-function renderContributions(terms){
-  contributions.innerHTML="";
-  terms.forEach(t=>{
-    const card=document.createElement("article");card.className="contribution-card";card.dataset.index=t.index;card.tabIndex=0;
-    card.innerHTML=`<div class="letter-symbol">${t.letter}</div><div class="contribution-info"><div class="contribution-equation"><i>a</i><sub>${t.index}</sub>(t) · sin(2π·${t.frequency.toFixed(1)}·t + ${t.phase.toFixed(3)})</div><div class="contribution-details"><span>${t.frequency.toFixed(1)} Hz</span><span>phase ${t.phase.toFixed(3)} rad</span><span>peak ${t.center.toFixed(2)} s</span><span>width ${t.width.toFixed(2)} s</span></div></div>`;
-    card.onmouseenter=()=>highlight(t.index);card.onfocus=()=>highlight(t.index);contributions.append(card);
-  });
+
+
+/*
+-----------------------------------------------------------
+EQUATION
+-----------------------------------------------------------
+*/
+
+function renderEquation(
+    analysis
+) {
+
+    generatedEquation.innerHTML =
+        "";
+
+
+    const prefix =
+        document.createElement(
+            "span"
+        );
+
+
+    prefix.innerHTML =
+        "<i>f</i>(t) =";
+
+
+    generatedEquation.append(
+        prefix
+    );
+
+
+    analysis.terms.forEach(
+        (term, index) => {
+
+            const termElement =
+                document.createElement(
+                    "span"
+                );
+
+
+            termElement.className =
+                "equation-term";
+
+
+            termElement.dataset.index =
+                term.index;
+
+
+            termElement.innerHTML = `
+
+                a<sub>${term.index}</sub>(t)
+
+                sin(
+
+                2π·${term.frequency.toFixed(1)}·t
+
+                +
+
+                ${term.phase.toFixed(3)}
+
+                )
+
+            `;
+
+
+            termElement.addEventListener(
+                "mouseenter",
+                () => highlight(
+                    term.index
+                )
+            );
+
+
+            generatedEquation.append(
+                termElement
+            );
+
+
+            if (
+                index <
+                analysis.terms.length - 1
+            ) {
+
+                const plus =
+                    document.createElement(
+                        "span"
+                    );
+
+
+                plus.className =
+                    "plus";
+
+
+                plus.textContent =
+                    "+";
+
+
+                generatedEquation.append(
+                    plus
+                );
+
+            }
+
+        }
+    );
+
 }
-function renderTable(terms){
-  termTable.innerHTML="";
-  terms.forEach(t=>{
-    const row=document.createElement("tr");row.dataset.index=t.index;
-    row.innerHTML=`<td>${t.index}</td><td><strong>${t.letter}</strong></td><td>${t.value}</td><td>${t.frequency.toFixed(1)} Hz</td><td>${t.phase.toFixed(3)} rad</td><td>${t.center.toFixed(2)} s</td><td>${t.width.toFixed(2)} s</td>`;
-    row.onmouseenter=()=>highlight(t.index);termTable.append(row);
-  });
+
+
+/*
+-----------------------------------------------------------
+LETTER CARDS
+-----------------------------------------------------------
+*/
+
+function renderLetters(
+    analysis
+) {
+
+    lettersContainer.innerHTML =
+        "";
+
+
+    analysis.terms.forEach(
+        term => {
+
+            const card =
+                document.createElement(
+                    "div"
+                );
+
+
+            card.className =
+                "letter-card";
+
+
+            card.dataset.index =
+                term.index;
+
+
+            card.innerHTML = `
+
+                <div class="letter">
+                    ${term.letter}
+                </div>
+
+                <div class="letter-data">
+
+                    <div class="letter-equation">
+
+                        a<sub>${term.index}</sub>(t)
+                        ·
+                        sin(
+                        2π·${term.frequency.toFixed(1)}·t
+                        +
+                        ${term.phase.toFixed(3)}
+                        )
+
+                    </div>
+
+                    <div class="details">
+
+                        <span>
+                            value ${term.value}
+                        </span>
+
+                        <span>
+                            ${term.frequency.toFixed(1)} Hz
+                        </span>
+
+                        <span>
+                            phase ${term.phase.toFixed(3)}
+                        </span>
+
+                        <span>
+                            peak ${term.center.toFixed(2)}s
+                        </span>
+
+                    </div>
+
+                </div>
+
+            `;
+
+
+            card.addEventListener(
+                "mouseenter",
+                () => highlight(
+                    term.index
+                )
+            );
+
+
+            lettersContainer.append(
+                card
+            );
+
+        }
+    );
+
 }
-function drawWave(active=null){
-  if(!signal)return;
-  const dpr=Math.min(devicePixelRatio||1,2),width=Math.max(320,Math.floor(canvas.clientWidth*dpr)),height=260;
-  canvas.width=width;canvas.height=height;const ctx=canvas.getContext("2d");
-  ctx.fillStyle="#fbfaf6";ctx.fillRect(0,0,width,height);
-  ctx.strokeStyle="#d7d2c8";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,height/2);ctx.lineTo(width,height/2);ctx.stroke();
-  const step=Math.max(1,Math.floor(signal.length/width));
-  ctx.strokeStyle="#171717";ctx.lineWidth=1.5;ctx.beginPath();
-  for(let x=0;x<width;x++){const y=height/2-signal[Math.min(signal.length-1,x*step)]*height*.39;x?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
-  if(analysis) for(const t of analysis.terms){
-    const x1=((Math.max(0,t.center-t.width)/analysis.duration)*width),x2=((Math.min(analysis.duration,t.center+t.width)/analysis.duration)*width);
-    ctx.strokeStyle=active===t.index?"#d85b35":"#e5e0d7";
-    ctx.beginPath();ctx.moveTo(x1,18);ctx.lineTo(x1,height-18);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(x2,18);ctx.lineTo(x2,height-18);ctx.stroke();
-  }
+
+
+/*
+-----------------------------------------------------------
+TABLE
+-----------------------------------------------------------
+*/
+
+function renderTable(
+    analysis
+) {
+
+    parameterTable.innerHTML =
+        "";
+
+
+    analysis.terms.forEach(
+        term => {
+
+            const row =
+                document.createElement(
+                    "tr"
+                );
+
+
+            row.dataset.index =
+                term.index;
+
+
+            row.innerHTML = `
+
+                <td>${term.index}</td>
+
+                <td>
+                    <strong>
+                        ${term.letter}
+                    </strong>
+                </td>
+
+                <td>${term.value}</td>
+
+                <td>
+                    ${term.frequency.toFixed(1)} Hz
+                </td>
+
+                <td>
+                    ${term.phase.toFixed(3)} rad
+                </td>
+
+                <td>
+                    ${term.center.toFixed(2)} s
+                </td>
+
+                <td>
+                    ${term.width.toFixed(2)} s
+                </td>
+
+            `;
+
+
+            row.addEventListener(
+                "mouseenter",
+                () => highlight(
+                    term.index
+                )
+            );
+
+
+            parameterTable.append(
+                row
+            );
+
+        }
+    );
+
 }
-function stop(){if(audio){audio.pause();audio.currentTime=0;audio=null;}play.textContent="▶ Play";}
-function cleanup(){if(url){URL.revokeObjectURL(url);url=null;}}
-async function copyEquation(){
-  if(!analysis)return;
-  try{await navigator.clipboard.writeText(analysis.equationText);const old=copy.textContent;copy.textContent="✓ Copied";setTimeout(()=>copy.textContent=old,1400);}
-  catch{status.textContent="Copy is unavailable in this browser.";}
+
+
+/*
+-----------------------------------------------------------
+HIGHLIGHT
+-----------------------------------------------------------
+*/
+
+function highlight(
+    index
+) {
+
+    document
+        .querySelectorAll(
+            "[data-index]"
+        )
+        .forEach(
+            element => {
+
+                element.classList.toggle(
+                    "active",
+                    element.dataset.index ===
+                    String(index)
+                );
+
+            }
+        );
+
 }
-function convert(){
-  stop();cleanup();
-  const raw=input.value.trim();
-  if(!raw){results.classList.add("hidden");status.textContent="Enter at least one letter.";return;}
-  const a=analyzeWord(raw);
-  if(!a.terms.length){results.classList.add("hidden");status.textContent="No A–Z letters were found.";return;}
-  analysis=a;status.textContent="";
-  resultTitle.textContent=`Generated from “${a.letters}”`;generatedWord.textContent=a.letters;
-  duration.textContent=`${a.duration.toFixed(2)} s`;letterCount.textContent=`${a.terms.length} ${a.terms.length===1?"letter":"letters"}`;
-  renderEquation(a);renderContributions(a.terms);renderTable(a.terms);
-  signal=renderWave(a);drawWave();
-  const blob=encodeWav(signal,SAMPLE_RATE);cleanup();url=URL.createObjectURL(blob);
-  download.href=url;download.download=sanitizeFilename(a.input);download.classList.remove("disabled-link");download.removeAttribute("aria-disabled");
-  audio=new Audio(url);play.disabled=false;copy.disabled=false;
-  audio.onended=()=>{play.textContent="▶ Play";drawWave();clearHighlight();};
-  audio.ontimeupdate=()=>{
-    const t=audio.currentTime,active=a.terms.find(x=>t>=x.center-x.width&&t<=x.center+x.width);
-    drawWave(active?.index??null);active?highlight(active.index):clearHighlight();
-  };
-  results.classList.remove("hidden");results.scrollIntoView({behavior:"smooth",block:"start"});
+
+
+/*
+-----------------------------------------------------------
+WAVEFORM
+-----------------------------------------------------------
+*/
+
+function drawWaveform(
+    analysis,
+    signal
+) {
+
+    const width =
+        canvas.clientWidth || 900;
+
+
+    const height =
+        260;
+
+
+    const dpr =
+        window.devicePixelRatio || 1;
+
+
+    canvas.width =
+        width * dpr;
+
+
+    canvas.height =
+        height * dpr;
+
+
+    const ctx =
+        canvas.getContext(
+            "2d"
+        );
+
+
+    ctx.scale(
+        dpr,
+        dpr
+    );
+
+
+    /*
+    Background
+    */
+
+    ctx.fillStyle =
+        "#fbfaf6";
+
+
+    ctx.fillRect(
+        0,
+        0,
+        width,
+        height
+    );
+
+
+    /*
+    Middle line
+    */
+
+    ctx.strokeStyle =
+        "#d8d2c7";
+
+
+    ctx.lineWidth = 1;
+
+
+    ctx.beginPath();
+
+
+    ctx.moveTo(
+        0,
+        height / 2
+    );
+
+
+    ctx.lineTo(
+        width,
+        height / 2
+    );
+
+
+    ctx.stroke();
+
+
+    /*
+    Waveform
+    */
+
+    ctx.strokeStyle =
+        "#171717";
+
+
+    ctx.lineWidth =
+        1.5;
+
+
+    ctx.beginPath();
+
+
+    for (
+        let x = 0;
+        x < width;
+        x++
+    ) {
+
+        const index =
+            Math.floor(
+                (
+                    x / width
+                ) *
+                signal.length
+            );
+
+
+        const sample =
+            signal[
+                Math.min(
+                    index,
+                    signal.length - 1
+                )
+            ];
+
+
+        const y =
+            height / 2 -
+            sample *
+            height *
+            0.40;
+
+
+        if (x === 0) {
+
+            ctx.moveTo(
+                x,
+                y
+            );
+
+        }
+
+        else {
+
+            ctx.lineTo(
+                x,
+                y
+            );
+
+        }
+
+    }
+
+
+    ctx.stroke();
+
+
+    /*
+    Letter boundaries
+    */
+
+    ctx.strokeStyle =
+        "#e4ddd3";
+
+
+    for (
+        const term of analysis.terms
+    ) {
+
+        const start =
+            Math.max(
+                0,
+                term.center -
+                term.width
+            );
+
+
+        const x =
+            (
+                start /
+                analysis.duration
+            ) *
+            width;
+
+
+        ctx.beginPath();
+
+
+        ctx.moveTo(
+            x,
+            15
+        );
+
+
+        ctx.lineTo(
+            x,
+            height - 15
+        );
+
+
+        ctx.stroke();
+
+    }
+
 }
-form.addEventListener("submit",e=>{e.preventDefault();convert();});
-play.addEventListener("click",async()=>{
-  if(!audio)return;
-  if(audio.paused){try{await audio.play();play.textContent="Ⅱ Pause";}catch{status.textContent="Press Play again to start audio.";}}
-  else{audio.pause();play.textContent="▶ Play";}
-});
-copy.addEventListener("click",copyEquation);
-window.addEventListener("resize",()=>drawWave());
-input.focus();
+
+
+/*
+-----------------------------------------------------------
+PLAY / PAUSE
+-----------------------------------------------------------
+*/
+
+playButton.addEventListener(
+    "click",
+    async () => {
+
+        if (!currentAudio) {
+
+            return;
+
+        }
+
+
+        if (
+            currentAudio.paused
+        ) {
+
+            try {
+
+                await currentAudio.play();
+
+                playButton.textContent =
+                    "Ⅱ Pause";
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    error
+                );
+
+                status.textContent =
+                    "The browser blocked audio playback.";
+
+            }
+
+        }
+
+        else {
+
+            currentAudio.pause();
+
+
+            playButton.textContent =
+                "▶ Play";
+
+        }
+
+    }
+);
+
+
+/*
+-----------------------------------------------------------
+WHEN AUDIO FINISHES
+-----------------------------------------------------------
+*/
+
+function audioFinished() {
+
+    playButton.textContent =
+        "▶ Play";
+
+}
+
+
+ /*
+ Attach when audio exists
+ */
+
+function attachAudioEvents() {
+
+    if (!currentAudio) {
+
+        return;
+
+    }
+
+
+    currentAudio.addEventListener(
+        "ended",
+        audioFinished
+    );
+
+}
+
+
+/*
+-----------------------------------------------------------
+COPY EQUATION
+-----------------------------------------------------------
+*/
+
+copyButton.addEventListener(
+    "click",
+    async () => {
+
+        if (!currentAnalysis) {
+
+            return;
+
+        }
+
+
+        const terms =
+            currentAnalysis.terms;
+
+
+        const equation =
+            "f(t) = " +
+
+            terms
+                .map(
+                    term =>
+                        `a_${term.index}(t) * ` +
+                        `sin(2π*${term.frequency.toFixed(1)}*t + ${term.phase.toFixed(3)})`
+                )
+                .join(" + ");
+
+
+        try {
+
+            await navigator.clipboard.writeText(
+                equation
+            );
+
+
+            copyButton.textContent =
+                "✓ Copied";
+
+
+            setTimeout(
+                () => {
+
+                    copyButton.textContent =
+                        "Copy Equation";
+
+                },
+                1500
+            );
+
+        }
+
+        catch {
+
+            status.textContent =
+                "Could not copy equation.";
+
+        }
+
+    }
+);
+
+
+/*
+-----------------------------------------------------------
+CONVERT BUTTON
+-----------------------------------------------------------
+*/
+
+convertButton.addEventListener(
+    "click",
+    convert
+);
+
+
+/*
+-----------------------------------------------------------
+ENTER KEY
+-----------------------------------------------------------
+*/
+
+wordInput.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key === "Enter"
+        ) {
+
+            convert();
+
+        }
+
+    }
+);
+
+
+/*
+-----------------------------------------------------------
+RESIZE
+-----------------------------------------------------------
+*/
+
+window.addEventListener(
+    "resize",
+    () => {
+
+        if (
+            currentAnalysis &&
+            currentSignal
+        ) {
+
+            drawWaveform(
+                currentAnalysis,
+                currentSignal
+            );
+
+        }
+
+    }
+);
+
+
+/*
+-----------------------------------------------------------
+START
+-----------------------------------------------------------
+*/
+
+wordInput.focus();
